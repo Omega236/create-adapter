@@ -1,5 +1,7 @@
 import { yellow } from "ansi-colors";
+import { licenses } from "./licenses";
 import { fetchPackageVersion } from "./packageVersions";
+import { ResultTransform } from "./questions";
 
 const emailRegex = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
 
@@ -73,17 +75,22 @@ export async function checkEmail(email: string): Promise<CheckResult> {
 	return true;
 }
 
-export function transformAdapterName(name: string): string {
+export const transformAdapterName: ResultTransform<string> = function(answerName, adapterName) {
 	const startsWithIoBroker = /^ioBroker\./i;
-	if (startsWithIoBroker.test(name)) {
-		name = name.replace(startsWithIoBroker, "");
+	if (startsWithIoBroker.test(adapterName)) {
+		this.value = adapterName.replace(startsWithIoBroker, "");
 		console.log(yellow(`You don't have to prefix the name with "ioBroker."`));
 	}
-	return name;
-}
+	return true;
+};
 
-export function transformDescription(description: string): string | undefined {
+export const transformDescription: ResultTransform<string> = function(answerName, description) {
 	description = description.trim();
-	if (description.length === 0) return undefined;
-	return description;
-}
+	if (description.length === 0) this.value = undefined;
+	return true;
+};
+
+export const licenseIDToLicense: ResultTransform<any> = function(answerName, licenseID) {
+	this.value = licenses[licenseID];
+	return true;
+};

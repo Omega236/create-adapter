@@ -28,11 +28,6 @@ async function ask() {
 					error("Adapter creation canceled");
 					return process.exit(1);
 				}
-				// Apply an optional transformation
-				if (typeof q.resultTransform === "function") {
-					const transformed = q.resultTransform(answer[q.name as string]);
-					answer[q.name as string] = transformed instanceof Promise ? await transformed : transformed;
-				}
 				// Test the result
 				if (q.action != undefined) {
 					const testResult = await q.action(answer[q.name as string]);

@@ -1,9 +1,8 @@
 import { isArray } from "alcalzone-shared/typeguards";
 import { dim, gray, green, underline } from "ansi-colors";
-import { prompt } from "enquirer";
-import { checkAdapterName, checkAuthorName, checkEmail, checkMinSelections, CheckResult, checkTitle, transformAdapterName, transformDescription } from "./actionsAndTransformers";
+import { prompt, Prompt } from "enquirer";
+import { checkAdapterName, checkAuthorName, checkEmail, checkMinSelections, CheckResult, checkTitle, licenseIDToLicense, transformAdapterName, transformDescription } from "./actionsAndTransformers";
 import { testCondition } from "./createAdapter";
-import { licenses } from "./licenses";
 import { getOwnVersion } from "./tools";
 
 // Sadly, Enquirer does not export the PromptOptions type
@@ -17,10 +16,11 @@ export type Condition = { name: string } & (
 	| { contains: AnswerValue }
 	| { doesNotContain: AnswerValue }
 );
+export type ResultTransform<T> = (this: Prompt & {value?: T}, name: string, value: T, prompt: Prompt) => boolean | Promise<boolean>;
 
 interface QuestionMeta {
 	condition?: Condition | Condition[];
-	resultTransform?: (val: AnswerValue | AnswerValue[]) => AnswerValue | AnswerValue[] | undefined | Promise<AnswerValue | AnswerValue[] | undefined>;
+	// resultTransform?: (val: AnswerValue | AnswerValue[]) => AnswerValue | AnswerValue[] | undefined | Promise<AnswerValue | AnswerValue[] | undefined>;
 	action?: QuestionAction<undefined | AnswerValue | AnswerValue[]>;
 	optional?: boolean;
 }
@@ -65,7 +65,8 @@ export const questionsAndText: (Question | QuestionGroup | string)[] = [
 				type: "input",
 				name: "adapterName",
 				message: "Please enter the name of your project:",
-				resultTransform: transformAdapterName,
+				onSubmit: transformAdapterName,
+				validate: (name) => {console.log(name); return false;},
 				action: checkAdapterName,
 			},
 			{
@@ -80,7 +81,7 @@ export const questionsAndText: (Question | QuestionGroup | string)[] = [
 				message: "Please enter a short description:",
 				hint: "(optional)",
 				optional: true,
-				resultTransform: transformDescription,
+				onSubmit: transformDescription,
 			},
 			{
 				condition: { name: "cli", value: false },
@@ -342,7 +343,7 @@ export const questionsAndText: (Question | QuestionGroup | string)[] = [
 					"MIT License",
 					"The Unlicense",
 				],
-				resultTransform: (value: string) => licenses[value] as any,
+				onSubmit: licenseIDToLicense,
 			},
 		],
 	},
@@ -433,9 +434,11 @@ export async function formatAnswers(answers: Record<string, any>): Promise<Recor
 		if (!conditionFulfilled) continue;
 
 		// Apply an optional transformation
-		if (answers[q.name as string] != undefined && typeof q.resultTransform === "function") {
-			const transformed = q.resultTransform(answers[q.name as string]);
-			answers[q.name as string] = transformed instanceof Promise ? await transformed : transformed;
+		if (answers[q.name as string] != undefined && typeof q.onSubmit === "function") {
+			const fakePrompt = {value: answers[q.name as string]};
+			const submitResult = q.onSubmit.call(fakePrompt, q.name as string, fakePrompt.value, fakePrompt as any);
+			if (submitResult instanceof Promise) await submitResult;
+			answers[q.name as string] = fakePrompt.value;
 		}
 	}
 	return answers;
